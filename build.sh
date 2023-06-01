@@ -187,7 +187,7 @@ echo
 
 cd ${BUILD_CONTEXT}
 set -x
-sudo docker build ${REMOVE_CACHE_OPTION} -t ${imageTag} \
+docker build ${REMOVE_CACHE_OPTION} -t ${imageTag} \
     ${BUILD_ARGS} \
     ${options} \
     -f $(basename ${DOCKERFILE}) ${BUILD_CONTEXT}
@@ -217,5 +217,5 @@ echo "----> Build Docker Images again: "
 echo "To build again: (there is a dot at the end of the command!)"
 echo "  docker build -t ${imageTag} . "
 echo
-sudo docker images |grep "$imageTag"
+docker images |grep "$imageTag"
 

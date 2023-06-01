@@ -1,9 +1,19 @@
-#FROM ${BASE_IMAGE:-ubuntu:20.04}
-FROM ${BASE_IMAGE:-ubuntu:18.04}
+FROM ubuntu
 
-MAINTAINER DrSnowbird "DrSnowbird@openkbs.org"
+MAINTAINER Rick "rick@dockergiant.com"
+
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND noninteractive
+
+#DEBIAN_FRONTEND=noninteractive
+#USER_ID=${USER_ID:-1000}
+#GROUP_ID=${GROUP_ID:-1000}
+#JAVA_VERSION=19
+#INSTALL_DIR=${INSTALL_DIR:-/usr}
+#SCRIPT_DIR=${SCRIPT_DIR:-$INSTALL_DIR/scripts}
+#LANG=C.UTF-8
+#LIB_BASIC_LIST="curl wget unzip ca-certificates"
 
 #### ---------------------
 #### ---- USER, GROUP ----
@@ -11,8 +21,7 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV USER_ID=${USER_ID:-1000}
 ENV GROUP_ID=${GROUP_ID:-1000}
 
-#ENV JAVA_VERSION=8
-ENV JAVA_VERSION=11
+ENV JAVA_VERSION=19
 
 ##############################################
 #### ---- Installation Directories   ---- ####
@@ -31,24 +40,25 @@ RUN set -eux; \
     apt-get install -y ${LIB_BASIC_LIST} 
     
 COPY ./scripts ${SCRIPT_DIR}
-COPY certificates /certificates
-RUN ${SCRIPT_DIR}/setup_system_certificates.sh
-RUN ${SCRIPT_DIR}/setup_system_proxy.sh
 
 ########################################
 #### update ubuntu and Install Python 3
 ########################################
+#LIB_DEV_LIST="apt-utils automake pkg-config libpcre3-dev zlib1g-dev liblzma-dev"
+#LIB_BASIC_LIST="curl iputils-ping nmap net-tools build-essential software-properties-common apt-transport-https"
+#LIB_COMMON_LIST="bzip2 libbz2-dev git wget unzip vim python3-pip python3-setuptools python3-dev python3-venv python3-numpy python3-scipy python3-pandas python3-matplotlib"
+#LIB_TOOL_LIST="graphviz libsqlite3-dev sqlite3 git xz-utils"
 ARG LIB_DEV_LIST="apt-utils automake pkg-config libpcre3-dev zlib1g-dev liblzma-dev"
 ARG LIB_BASIC_LIST="curl iputils-ping nmap net-tools build-essential software-properties-common apt-transport-https"
 ARG LIB_COMMON_LIST="bzip2 libbz2-dev git wget unzip vim python3-pip python3-setuptools python3-dev python3-venv python3-numpy python3-scipy python3-pandas python3-matplotlib"
 ARG LIB_TOOL_LIST="graphviz libsqlite3-dev sqlite3 git xz-utils"
 
 RUN apt-get update -y && \
-    apt-get install -y ${LIB_DEV_LIST} && \
-    apt-get install -y ${LIB_BASIC_LIST} && \
-    apt-get install -y ${LIB_COMMON_LIST} && \
-    apt-get install -y ${LIB_TOOL_LIST} && \
-    apt-get install -y sudo && \
+    apt-get install -yq ${LIB_DEV_LIST} && \
+    apt-get install -yq ${LIB_BASIC_LIST} && \
+    apt-get install -yq ${LIB_COMMON_LIST} && \
+    apt-get install -yq ${LIB_TOOL_LIST} && \
+    apt-get install -yq sudo && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 
@@ -78,7 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Default to UTF-8 file.encoding
 ENV LANG C.UTF-8
 
-ENV JAVA_HOME=/usr/lib/jvm/java-${JAVA_VERSION}-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-${JAVA_VERSION}-openjdk-${TARGETARCH}
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 # ------------------
@@ -97,22 +107,22 @@ RUN apt-get update -y && \
     export PATH=$PATH ; echo "PATH=${PATH}" ; export JAVA_HOME=${JAVA_HOME} ; echo "java=`which java`" && \
     rm -rf /var/lib/apt/lists/*
 
-# ------------------------------------------------------------------------------------------------
-# update-alternatives so that future installs of other OpenJDK versions don't change /usr/bin/java
-# ... and verify that it actually worked for one of the alternatives we care about
-# ------------------------------------------------------------------------------------------------
-RUN update-alternatives --get-selections | awk -v home="$(readlink -f "$JAVA_HOME")" 'index($3, home) == 1 { $2 = "manual"; print | "update-alternatives --set-selections" }'; \
-	update-alternatives --query java | grep -q 'Status: manual'
+## ------------------------------------------------------------------------------------------------
+## update-alternatives so that future installs of other OpenJDK versions don't change /usr/bin/java
+## ... and verify that it actually worked for one of the alternatives we care about
+## ------------------------------------------------------------------------------------------------
+#RUN update-alternatives --get-selections | awk -v home="$(readlink -f "$JAVA_HOME")" 'index($3, home) == 1 { $2 = "manual"; print | "update-alternatives --set-selections" }'; \
+#	update-alternatives --query java | grep -q 'Status: manual'
 
 ###################################
 #### ---- Install Maven 3 ---- ####
 ###################################
-ENV MAVEN_VERSION=${MAVEN_VERSION:-3.8.5}
+ENV MAVEN_VERSION=${MAVEN_VERSION:-3.9.2}
 ENV MAVEN_HOME=/usr/apache-maven-${MAVEN_VERSION}
 ENV MAVEN_PACKAGE=apache-maven-${MAVEN_VERSION}-bin.tar.gz
 ENV PATH=${PATH}:${MAVEN_HOME}/bin
 ## -- Auto tracking (by parsing product release page) the latest release -- ##
-# https://dlcdn.apache.org/maven/maven-3/3.8.5/binaries/apache-maven-3.8.5-bin.tar.gz
+# https://dlcdn.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz
 RUN export MAVEN_PACKAGE_URL=$(curl -s https://maven.apache.org/download.cgi | grep -e "apache-maven.*bin.tar.gz" | head -1|cut -d'"' -f2) && \
     export MAVEN_PACKAGE=$(basename $MAVEN_PACKAGE_URL) && \
     export MAVEN_VERSION=$(echo ${MAVEN_PACKAGE}|cut -d'-' -f3) && \
@@ -148,7 +158,7 @@ RUN mvn --version && \
 # Ref: https://gradle.org/releases/
 
 ENV GRADLE_INSTALL_BASE=${GRADLE_INSTALL_BASE:-/opt/gradle}
-ENV GRADLE_VERSION=${GRADLE_VERSION:-7.4}
+ENV GRADLE_VERSION=${GRADLE_VERSION:-8.1.1}
 ENV GRADLE_PACKAGE=gradle-${GRADLE_VERSION}-bin.zip
 ENV GRADLE_PACKAGE_URL=https://services.gradle.org/distributions/${GRADLE_PACKAGE}
 ENV GRADLE_HOME=${GRADLE_INSTALL_BASE}/gradle-${GRADLE_VERSION}
@@ -176,7 +186,7 @@ RUN mkdir -p ${GRADLE_INSTALL_BASE} && \
 #ARG NODE_VERSION=${NODE_VERSION:-current}
 # Ubuntu 18.04 missing GLC lib 2.28 needed by latest Node v18
 # Hence stick to v17
-ARG NODE_VERSION=${NODE_VERSION:-17}
+ARG NODE_VERSION=${NODE_VERSION:-19}
 ENV NODE_VERSION=${NODE_VERSION}
 RUN apt-get update -y && \
     curl -sL -k https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - && \
@@ -191,7 +201,7 @@ RUN cd ${SCRIPT_DIR}; ${SCRIPT_DIR}/setup_npm_proxy.sh
 # Ref: https://classic.yarnpkg.com/en/docs/install/#debian-stable
 RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add - && \
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list && \
-    apt-get update -y && \ 
+    apt-get update -y && \
     apt-get install -y yarn
 
 ###################################
